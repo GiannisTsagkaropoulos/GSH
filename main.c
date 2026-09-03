@@ -17,6 +17,19 @@ void handle_type(char *buf)
       return;
     }
   }
+
+  char *PATH = strdup(getenv("PATH"));
+
+  for (char *p = strtok(PATH, ":"); p != NULL; p = strtok(NULL, ":"))
+  {
+    char fp[1024];
+    sprintf(fp, "%s/%s", p, buf);
+    if (access(fp, X_OK) == 0)
+    {
+      printf("%s is %s\n", buf, fp);
+      return;
+    }
+  }
   printf("%s: not found\n", buf);
 }
 
