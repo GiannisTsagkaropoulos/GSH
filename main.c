@@ -3,7 +3,10 @@
 #include <string.h>
 #include <unistd.h>
 #include <limits.h>
+#include <errno.h>
+#include <sys/stat.h>
 
+#define ARG_SEP " \t\r"
 const int NUM_COMMANDS = 3;
 const char *VALID_COMMANDS[3] = {"exit", "echo", "type"};
 
@@ -93,6 +96,66 @@ void handle_pwd(const char *input)
   free(input_cpy);
 }
 
+int dir_exists(const char *path)
+{
+  struct stat status;
+
+  stat(path, &status);
+  // remove bit mask for file type.  https://manpages.debian.org/testing/manpages/S_ISDIR.3.en.html
+  if ((status.st_mode & S_IFMT) == S_IFDIR)
+  {
+    return 1;
+  }
+  return 0;
+}
+
+void create_fullpath(char *target_dir, char *cd_arg)
+{
+  // Absolute path
+  if (!strncmp(cd_arg, "/", 1))
+  {
+    strncpy(target_dir, cd_arg, PATH_MAX);
+  }
+}
+
+void handle_cd(const char *input)
+{
+  char *input_cpy = strdup(input);
+  if (!input_cpy)
+  {
+    printf("cd failed: %s\n", strerror(errno));
+    return;
+  }
+
+  strtok(input_cpy, ARG_SEP);
+
+  char *cd_arg = strtok(NULL, ARG_SEP);
+  char *extra_arg = strtok(NULL, ARG_SEP);
+  if (extra_arg != NULL)
+  {
+    printf("cd: string not in pwd: %s\n", cd_arg);
+    free(input_cpy);
+    return;
+  }
+
+  char target_dir[PATH_MAX];
+
+  create_fullpath(target_dir, cd_arg);
+
+  if (!dir_exists(target_dir))
+  {
+    printf("cd: %s : No such file or directory\n", target_dir);
+    return;
+  }
+
+  int res = chdir(target_dir);
+  if (res == -1)
+  {
+    printf("cd failed: %s\n", strerror(errno));
+    return;
+  }
+}
+
 void handle_exec(char *fullpath, const char *input)
 {
   char *input_cpy = strdup(input);
@@ -161,6 +224,9 @@ int main(int argc, char *argv[])
 
     else if (strncmp(user_input, "pwd", 3) == 0)
       handle_pwd(user_input);
+
+    else if (strncmp(user_input, "cd", 2) == 0)
+      handle_cd(user_input);
 
     else if (is_exec(fullpath, user_input))
       handle_exec(fullpath, user_input);
