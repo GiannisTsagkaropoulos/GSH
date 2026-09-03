@@ -14,6 +14,7 @@
 #define ARG_SEP " \t\r"
 #define FIRST_PATH_SEP
 #define PROMPT "GSH"
+#define SINGLE_QUOTE '\''
 const int NUM_COMMANDS = 4;
 const char *VALID_COMMANDS[4] = {"exit", "echo", "type", "cd"};
 
@@ -338,6 +339,94 @@ void builtin_echo(char *arg)
 {
   printf("%s", arg);
   return;
+}
+
+/**
+ * @brief Parse user input to program and arguments, respecting single quote
+ *
+ * @param input
+ * @return * void
+ */
+void parse_argv(const char *input)
+{
+  char *input_cpy = strdup(input);
+  if (!input_cpy)
+    return;
+  input_cpy[strcspn(input_cpy, "\n")] = '\0';
+
+  int argc = 0;
+  int max_args = 10;
+  char **argv = malloc(max_args * sizeof(char *));
+
+  bool in_quote = false;
+  bool in_token = false;
+
+  char *r_ptr = input_cpy;
+  char *w_ptr = input_cpy;
+
+  while (*r_ptr != '\0')
+  {
+    if (!in_quote && isspace((unsigned char)*r_ptr)) // Unquoted space or tab
+    {
+      if (in_token)
+      {
+        *w_ptr++ = '\0';
+        in_token = false;
+      }
+    }
+    else if (*r_ptr == SINGLE_QUOTE)
+    {
+      in_quote = !in_quote;
+
+      if (!in_token)
+      {
+        argv[argc++] = w_ptr;
+        in_token = true;
+
+        if (argc >= max_args)
+        {
+          max_args *= 2;
+          argv = realloc(argv, max_args * sizeof(char *));
+        }
+      }
+    }
+    else // Normal character
+    {
+      if (!in_token)
+      {
+        argv[argc++] = w_ptr;
+        in_token = true;
+
+        if (argc >= max_args)
+        {
+          max_args *= 2;
+          argv = realloc(argv, max_args * sizeof(char *));
+        }
+      }
+      *w_ptr++ = *r_ptr;
+    }
+    r_ptr++;
+  }
+
+  if (in_token)
+  {
+    *w_ptr = '\0';
+  }
+
+  if (argc >= max_args)
+  {
+    argv = realloc(argv, (argc + 1) * sizeof(char *));
+  }
+  argv[argc] = NULL;
+
+  printf("Parsed %d arguments:\n", argc);
+  for (int i = 0; i < argc; i++)
+  {
+    printf("argv[%d]: %s\n", i, argv[i]);
+  }
+
+  free(argv);
+  free(input_cpy);
 }
 
 int main(int argc, char *argv[])
