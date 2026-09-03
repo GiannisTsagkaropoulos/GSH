@@ -39,9 +39,11 @@ void builtin_type(char *buf)
     if (access(fp, X_OK) == 0)
     {
       printf("%s is %s\n", buf, fp);
+      free(PATH);
       return;
     }
   }
+  free(PATH);
   printf("%s: not found\n", buf);
 }
 
@@ -185,17 +187,23 @@ void create_fullpath(char *target_dir, char *cwd, char *cd_arg)
   }
 
   size_t size = 0;
+  char temp_dir[PATH_MAX] = "";
+
   for (int i = 0; i < idx; i++)
   {
+    char *next_dir;
     char *dir = path_arr[i];
+
     size_t dir_size = strlen(dir);
     size = size == 0 ? 2 + dir_size : size + 1 + dir_size;
-    snprintf(target_dir, size, "%s/%s", target_dir, dir);
+
+    snprintf(next_dir, PATH_MAX, "%s/%s", temp_dir, path_arr[i]);
+    strncpy(temp_dir, next_dir, PATH_MAX);
   }
+  strncpy(target_dir, temp_dir, size);
   free(arg_token);
   return;
 }
-
 int handle_home_dir(char *target_dir, char *cd_arg)
 {
   // Handle "~" or "~/"
@@ -232,7 +240,7 @@ int handle_home_dir(char *target_dir, char *cd_arg)
     }
     else
     {
-      strncpy(target_dir, pw->pw_dir, sizeof(target_dir) - 1);
+      strncpy(target_dir, pw->pw_dir, PATH_MAX);
     }
     return 0;
   }
@@ -435,9 +443,9 @@ int main(int argc, char *argv[])
   char user_input[1024];
   char fullpath[PATH_MAX];
 
+  printf("---- Welcome to GSH :D ----\n");
   while (1)
   {
-    printf("---- Welcome to GSH :D ----\n");
     printf("$ ");
     fgets(user_input, sizeof(user_input), stdin);
     user_input[strcspn(user_input, "\n")] = '\0';
