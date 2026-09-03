@@ -72,6 +72,27 @@ int is_exec(char *fullpath, const char *input)
   return found;
 }
 
+void handle_pwd(const char *input)
+{
+  char *path_sep = " \t\r";
+  char *input_cpy = strdup(input);
+
+  char *words = strtok(input_cpy, path_sep);
+  if (strtok(NULL, path_sep) != NULL) // pwd is followed by arguments
+  {
+    printf("pwd: too many arguments\n");
+    return;
+  }
+
+  size_t path_size = PATH_MAX;
+  char path[PATH_MAX];
+
+  getcwd(path, path_size);
+  printf("%s\n", path);
+
+  free(input_cpy);
+}
+
 void handle_exec(char *fullpath, const char *input)
 {
   char *input_cpy = strdup(input);
@@ -137,6 +158,9 @@ int main(int argc, char *argv[])
 
     else if (strncmp(user_input, "type ", 5) == 0)
       handle_type(user_input + 5);
+
+    else if (strncmp(user_input, "pwd", 3) == 0)
+      handle_pwd(user_input);
 
     else if (is_exec(fullpath, user_input))
       handle_exec(fullpath, user_input);
