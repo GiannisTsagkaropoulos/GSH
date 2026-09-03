@@ -5,6 +5,7 @@
 #include <limits.h>
 #include <errno.h>
 #include <sys/stat.h>
+#include <ctype.h>
 
 #define ARG_SEP " \t\r"
 const int NUM_COMMANDS = 3;
@@ -87,10 +88,9 @@ void handle_pwd(const char *input)
     return;
   }
 
-  size_t path_size = PATH_MAX;
   char path[PATH_MAX];
 
-  getcwd(path, path_size);
+  getcwd(path, PATH_MAX);
   printf("%s\n", path);
 
   free(input_cpy);
@@ -109,13 +109,83 @@ int dir_exists(const char *path)
   return 0;
 }
 
-void create_fullpath(char *target_dir, char *cd_arg)
+void create_fullpath(char *target_dir, char *cwd, char *cd_arg)
 {
   // Absolute path
-  if (!strncmp(cd_arg, "/", 1))
+  if (strncmp(cd_arg, "/", 1) == 0)
   {
     strncpy(target_dir, cd_arg, PATH_MAX);
+    return;
   }
+
+  // Relative path
+  char relative_path[PATH_MAX];
+
+  if (strncmp(cd_arg, "./", 2) == 0)
+  {
+    strcpy(relative_path, cd_arg + 1);
+  }
+  else if (isalnum(cd_arg[0]) || (!strncmp(cd_arg, ".", 1) && (strlen(cd_arg) > 1) && isalnum(cd_arg[2])))
+  { // handle relative path which starts with hidden directory
+    relative_path[0] = '/';
+    strcpy(relative_path + 1, cd_arg);
+  }
+
+  if (!strncmp(relative_path, "/", 1))
+  {
+    snprintf(target_dir, PATH_MAX, "%s/%s", cwd, relative_path + 1);
+    return;
+  }
+
+  // "starts with .."
+  char *arg_token = strdup(cd_arg);
+  arg_token = strtok(arg_token, "/ \t\r\n");
+  int steps_back = 0;
+  while (arg_token && !strcmp(arg_token, ".."))
+  {
+    if (strcmp(arg_token, "..") == 0)
+    {
+      steps_back++;
+    }
+    arg_token = strtok(NULL, "/");
+  }
+
+  char **path_arr = NULL;
+  char *cwd_token = strtok(cwd, "/");
+  int dir_num = 1;
+  while (cwd_token != NULL)
+  {
+    path_arr = realloc(path_arr, sizeof(char *) * dir_num);
+    path_arr[dir_num - 1] = cwd_token;
+    cwd_token = strtok(NULL, "/");
+    dir_num++;
+  }
+  dir_num -= 1;
+  int max_path = dir_num;
+
+  int diff = dir_num - steps_back;
+  int idx = diff < 0 ? 0 : diff;
+  while (arg_token != NULL)
+  {
+    if (idx > max_path)
+    {
+      path_arr = realloc(path_arr, sizeof(char *) * idx);
+    }
+    path_arr[idx] = arg_token;
+    arg_token = strtok(NULL, "/");
+    idx++;
+  }
+
+  size_t size = 0;
+  for (int i = 0; i < idx; i++)
+  {
+    char *dir = path_arr[i];
+    size_t dir_size = strlen(dir);
+    size = size == 0 ? 2 + dir_size : size + 1 + dir_size;
+    snprintf(target_dir, size, "%s/%s", target_dir, dir);
+  }
+  free(arg_token);
+  return;
 }
 
 void handle_cd(const char *input)
@@ -138,9 +208,11 @@ void handle_cd(const char *input)
     return;
   }
 
+  char cwd[PATH_MAX];
   char target_dir[PATH_MAX];
 
-  create_fullpath(target_dir, cd_arg);
+  getcwd(cwd, PATH_MAX);
+  create_fullpath(target_dir, cwd, cd_arg);
 
   if (!dir_exists(target_dir))
   {
@@ -241,7 +313,6 @@ int main(int argc, char *argv[])
       }
       free(input_cpy);
     }
-
-    return 0;
   }
+  return 0;
 }
