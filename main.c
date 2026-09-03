@@ -9,14 +9,15 @@
 #include <sys/types.h>
 #include <pwd.h>
 #include <uuid/uuid.h>
+#include <stdbool.h>
 
 #define ARG_SEP " \t\r"
 #define FIRST_PATH_SEP
-#define MY_SHELL "GSH"
-const int NUM_COMMANDS = 3;
-const char *VALID_COMMANDS[3] = {"exit", "echo", "type"};
+#define PROMPT "GSH"
+const int NUM_COMMANDS = 4;
+const char *VALID_COMMANDS[4] = {"exit", "echo", "type", "cd"};
 
-void handle_type(char *buf)
+void builtin_type(char *buf)
 {
 
   for (int i = 0; i < NUM_COMMANDS; i++)
@@ -81,7 +82,7 @@ int is_exec(char *fullpath, const char *input)
   return found;
 }
 
-void handle_pwd(const char *input)
+void builtin_pwd(const char *input)
 {
   char *path_sep = " \t\r";
   char *input_cpy = strdup(input);
@@ -90,6 +91,7 @@ void handle_pwd(const char *input)
   if (strtok(NULL, path_sep) != NULL) // pwd is followed by arguments
   {
     printf("pwd: too many arguments\n");
+    free(input_cpy);
     return;
   }
 
@@ -235,7 +237,7 @@ int handle_home_dir(char *target_dir, char *cd_arg)
   }
 }
 
-void handle_cd(const char *input)
+void builtin_cd(const char *input)
 {
   char *input_cpy = strdup(input);
   if (!input_cpy)
@@ -288,7 +290,7 @@ void handle_cd(const char *input)
   }
 }
 
-void handle_exec(char *fullpath, const char *input)
+void builtin_exec(char *fullpath, const char *input)
 {
   char *input_cpy = strdup(input);
   if (!input_cpy)
@@ -332,6 +334,12 @@ void handle_exec(char *fullpath, const char *input)
   free(argv);
 }
 
+void builtin_echo(char *arg)
+{
+  printf("%s", arg);
+  return;
+}
+
 int main(int argc, char *argv[])
 {
   setbuf(stdout, NULL);
@@ -349,19 +357,19 @@ int main(int argc, char *argv[])
       break;
 
     else if (strncmp(user_input, "echo ", 5) == 0)
-      printf("%s\n", user_input + 5);
+      builtin_echo(user_input + 5);
 
     else if (strncmp(user_input, "type ", 5) == 0)
-      handle_type(user_input + 5);
+      builtin_type(user_input + 5);
 
     else if (strncmp(user_input, "pwd", 3) == 0)
-      handle_pwd(user_input);
+      builtin_pwd(user_input);
 
     else if (strncmp(user_input, "cd", 2) == 0)
-      handle_cd(user_input);
+      builtin_cd(user_input);
 
     else if (is_exec(fullpath, user_input))
-      handle_exec(fullpath, user_input);
+      builtin_exec(fullpath, user_input);
 
     else
     {
