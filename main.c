@@ -6,8 +6,13 @@
 #include <errno.h>
 #include <sys/stat.h>
 #include <ctype.h>
+#include <sys/types.h>
+#include <pwd.h>
+#include <uuid/uuid.h>
 
 #define ARG_SEP " \t\r"
+#define FIRST_PATH_SEP
+#define MY_SHELL "GSH"
 const int NUM_COMMANDS = 3;
 const char *VALID_COMMANDS[3] = {"exit", "echo", "type"};
 
@@ -188,6 +193,48 @@ void create_fullpath(char *target_dir, char *cwd, char *cd_arg)
   return;
 }
 
+int handle_home_dir(char *target_dir, char *cd_arg)
+{
+  // Handle "~" or "~/"
+  if (cd_arg[1] == '\0' || cd_arg[1] == '/')
+  {
+    const char *home = getenv("HOME");
+    if (home == NULL)
+    {
+      fprintf(stderr, "cd: HOME not set\n");
+      return 1;
+    }
+    sprintf(target_dir, "%s%s", home, cd_arg + 1);
+    return 0;
+  }
+  // Handle "~username"
+  else
+  {
+    char *slash = strchr(cd_arg, '/');
+    if (slash)
+      *slash = '\0';
+
+    struct passwd *pw = getpwnam(cd_arg + 1);
+    if (pw == NULL)
+    {
+      fprintf(stderr, "cd: no such user: %s\n", cd_arg + 1);
+      return 1;
+    }
+
+    // Re-append the rest of the path if there was a slash
+    if (slash)
+    {
+      *slash = '/';
+      sprintf(target_dir, "%s%s", pw->pw_dir, slash);
+    }
+    else
+    {
+      strncpy(target_dir, pw->pw_dir, sizeof(target_dir) - 1);
+    }
+    return 0;
+  }
+}
+
 void handle_cd(const char *input)
 {
   char *input_cpy = strdup(input);
@@ -201,18 +248,31 @@ void handle_cd(const char *input)
 
   char *cd_arg = strtok(NULL, ARG_SEP);
   char *extra_arg = strtok(NULL, ARG_SEP);
+
+  if (cd_arg == NULL)
+    cd_arg = "~";
+
   if (extra_arg != NULL)
   {
-    printf("cd: string not in pwd: %s\n", cd_arg);
+    fprintf(stderr, "cd: too many arguments\n");
     free(input_cpy);
     return;
   }
 
   char cwd[PATH_MAX];
-  char target_dir[PATH_MAX];
+  char target_dir[PATH_MAX] = {0};
 
-  getcwd(cwd, PATH_MAX);
-  create_fullpath(target_dir, cwd, cd_arg);
+  if (cd_arg[0] == '~')
+  {
+    int res = handle_home_dir(target_dir, cd_arg);
+    if (res != 0)
+      return;
+  }
+  else
+  {
+    getcwd(cwd, PATH_MAX);
+    create_fullpath(target_dir, cwd, cd_arg);
+  }
 
   if (!dir_exists(target_dir))
   {
