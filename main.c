@@ -12,6 +12,8 @@
 #define FIRST_PATH_SEP
 #define PROMPT "GSH"
 #define SINGLE_QUOTE '\''
+#define DOUBLE_QUOTE '\"'
+#define BACKSLASH '\\'
 /**
  * @brief Parse user input to program and arguments, respecting single quote.
  * Caller is responsible for freeing *out_input_cpy returned argv.
@@ -33,6 +35,7 @@ char **parse_argv(char **out_input_cpy, int *out_argc, const char *input)
   char **argv = malloc(max_args * sizeof(char *));
 
   bool in_quote = false;
+  bool in_dquote = false;
   bool in_token = false;
 
   char *r_ptr = input_cpy;
@@ -40,7 +43,7 @@ char **parse_argv(char **out_input_cpy, int *out_argc, const char *input)
 
   while (*r_ptr != '\0')
   {
-    if (!in_quote && isspace((unsigned char)*r_ptr)) // Unquoted space or tab
+    if (!in_quote && !in_dquote && isspace((unsigned char)*r_ptr)) // Unquoted space or tab
     {
       if (in_token)
       {
@@ -48,7 +51,7 @@ char **parse_argv(char **out_input_cpy, int *out_argc, const char *input)
         in_token = false;
       }
     }
-    else if (*r_ptr == SINGLE_QUOTE)
+    else if (*r_ptr == SINGLE_QUOTE && !in_dquote)
     {
       in_quote = !in_quote;
 
@@ -63,6 +66,51 @@ char **parse_argv(char **out_input_cpy, int *out_argc, const char *input)
           argv = realloc(argv, max_args * sizeof(char *));
         }
       }
+    }
+    else if (*r_ptr == DOUBLE_QUOTE)
+    {
+      in_dquote = !in_dquote;
+      if (!in_token)
+      {
+        argv[argc++] = w_ptr;
+        in_token = true;
+
+        if (argc >= max_args)
+        {
+          max_args *= 2;
+          argv = realloc(argv, max_args * sizeof(char *));
+        }
+      }
+    }
+    else if (*r_ptr == BACKSLASH && !in_quote)
+    {
+      if (!in_token)
+      {
+        argv[argc++] = w_ptr;
+        in_token = true;
+        if (argc >= max_args)
+        {
+          max_args *= 2;
+          argv = realloc(argv, max_args * sizeof(char *));
+        }
+      }
+      r_ptr++;
+      *w_ptr++ = *r_ptr;
+    }
+    else if (*r_ptr == BACKSLASH && in_dquote)
+    {
+      if (!in_token)
+      {
+        argv[argc++] = w_ptr;
+        in_token = true;
+        if (argc >= max_args)
+        {
+          max_args *= 2;
+          argv = realloc(argv, max_args * sizeof(char *));
+        }
+      }
+      r_ptr++;
+      *w_ptr++ = *r_ptr;
     }
     else // Normal character
     {
