@@ -97,6 +97,21 @@ char **parse_argv(char **out_input_cpy, int *out_argc, const char *input)
       r_ptr++;
       *w_ptr++ = *r_ptr;
     }
+    else if (*r_ptr == BACKSLASH && in_dquote)
+    {
+      if (!in_token)
+      {
+        argv[argc++] = w_ptr;
+        in_token = true;
+        if (argc >= max_args)
+        {
+          max_args *= 2;
+          argv = realloc(argv, max_args * sizeof(char *));
+        }
+      }
+      r_ptr++;
+      *w_ptr++ = *r_ptr;
+    }
     else // Normal character
     {
       if (!in_token)
