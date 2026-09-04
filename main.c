@@ -82,7 +82,7 @@ char **parse_argv(char **out_input_cpy, int *out_argc, const char *input)
         }
       }
     }
-    else if (*r_ptr == BACKSLASH)
+    else if (*r_ptr == BACKSLASH && !in_quote)
     {
       if (!in_token)
       {
