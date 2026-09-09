@@ -68,22 +68,13 @@ void builtin_cd(int argc, char **argv)
     return;
   }
 
-  char *cd_arg = (argc > 1) ? argv[1] : "~";
+  char *cd_arg = (argc > 0) ? argv[1] : "~";
 
   char cwd[PATH_MAX];
   char target_dir[PATH_MAX] = {0};
 
-  if (cd_arg[0] == '~')
-  {
-    int res = handle_home_dir(target_dir, cd_arg);
-    if (res != 0)
-      return;
-  }
-  else
-  {
-    getcwd(cwd, PATH_MAX);
-    create_fullpath(target_dir, cwd, cd_arg);
-  }
+  getcwd(cwd, PATH_MAX);
+  create_fullpath(target_dir, cwd, cd_arg);
 
   if (!dir_exists(target_dir))
   {
