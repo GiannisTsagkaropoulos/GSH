@@ -3,14 +3,14 @@
 #include <string.h>
 #include <unistd.h>
 #include <limits.h>
-#include <errno.h>
+#include <sys/errno.h>
 #include <sys/wait.h>
 #include "builtins.h"
 #include "utils.h"
 
 const char *VALID_COMMANDS[4] = {"exit", "echo", "type", "cd"};
 
-void builtin_type(int argc, char **argv)
+void builtin_type(int argc, char **argv, FILE *stdout_stream)
 {
   if (argc < 2)
     return;
@@ -20,7 +20,7 @@ void builtin_type(int argc, char **argv)
   {
     if (strcmp(cmd, VALID_COMMANDS[i]) == 0)
     {
-      printf("%s is a shell builtin\n", cmd);
+      fprintf(stdout_stream, "%s is a shell builtin\n", cmd);
       return;
     }
   }
@@ -36,7 +36,7 @@ void builtin_type(int argc, char **argv)
     snprintf(fp, PATH_MAX, "%s/%s", p, cmd);
     if (access(fp, X_OK) == 0)
     {
-      printf("%s is %s\n", cmd, fp);
+      fprintf(stdout_stream, "%s is %s\n", cmd, fp);
       free(PATH);
       return;
     }
@@ -45,7 +45,7 @@ void builtin_type(int argc, char **argv)
   free(PATH);
 }
 
-void builtin_pwd(int argc)
+void builtin_pwd(int argc, FILE *stdout_stream)
 {
   if (argc > 1)
   {
@@ -56,11 +56,11 @@ void builtin_pwd(int argc)
   char path[PATH_MAX];
   if (getcwd(path, PATH_MAX))
   {
-    printf("%s\n", path);
+    fprintf(stdout_stream, "%s\n", path);
   }
 }
 
-void builtin_cd(int argc, char **argv)
+void builtin_cd(int argc, char **argv, FILE *stdout_stream)
 {
   if (argc > 2)
   {
@@ -88,14 +88,23 @@ void builtin_cd(int argc, char **argv)
     printf("cd failed: %s\n", strerror(errno));
     return;
   }
+  fprintf(stdout_stream, "%s", target_dir);
 }
 
-void builtin_exec(char *fullpath, char **argv)
+void builtin_exec(char *fullpath, char **argv, FILE *stdout_stream)
 {
-
   pid_t pid = fork();
   if (pid == 0)
   {
+    int target_out_fd = fileno(stdout_stream);
+    if (target_out_fd != STDOUT_FILENO)
+    {
+      if (dup2(target_out_fd, STDOUT_FILENO) == -1)
+      {
+        perror("dup2 failed");
+        exit(1);
+      }
+    }
     if (execv(fullpath, argv) == -1)
     {
       perror("execv failed");
@@ -107,13 +116,17 @@ void builtin_exec(char *fullpath, char **argv)
     int status;
     waitpid(pid, &status, 0);
   }
+  else
+  {
+    perror("fork failed");
+  }
 }
 
-void builtin_echo(int argc, char **argv)
+void builtin_echo(int argc, char **argv, FILE *stdout_stream)
 {
   for (int i = 1; i < argc; i++)
   {
-    printf("%s%s", argv[i], i < argc - 1 ? " " : "");
+    fprintf(stdout_stream, "%s%s", argv[i], i < argc - 1 ? " " : "");
   }
-  printf("\n");
+  fprintf(stdout_stream, "\n");
 }
