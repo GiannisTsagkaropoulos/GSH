@@ -5,9 +5,15 @@ EXE = build/gsh
 SOURCES = main.c builtins.c utils.c
 OBJECTS = $(SOURCES:%.c=build/%.o)
 
-.PHONY: all clean
+.PHONY: all run debug clean
 
 all: $(EXE)
+
+run: $(EXE)
+	./build/gsh
+
+debug: $(EXE)
+	lldb ./build/gsh
 
 $(EXE): $(OBJECTS)
 	$(CC) $(CFLAGS) -o $@ $^

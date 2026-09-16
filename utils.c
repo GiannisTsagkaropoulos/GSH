@@ -50,6 +50,13 @@ int is_exec(char *fullpath, char *program)
 
 void create_fullpath(char *target_dir, char *cwd, char *cd_arg)
 {
+  if (cd_arg[0] == '~')
+  {
+    int res = handle_home_dir(target_dir, cd_arg);
+    if (res != 0)
+      return;
+  }
+
   // Absolute path
   if (strncmp(cd_arg, "/", 1) == 0)
   {
