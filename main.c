@@ -15,6 +15,7 @@
 #define APPEND_OUT_1 ">>"
 #define APPEND_OUT_2 "1>>"
 #define REDIR_ERR "2>"
+#define APPEND_ERR "2>>"
 #define FIRST_PATH_SEP
 #define PROMPT "GSH"
 #define SINGLE_QUOTE '\''
@@ -167,8 +168,10 @@ void execute_command(const char *user_input)
   int argc_cpy = 0;
   char **argv_cpy = malloc((argc + 1) * sizeof(char *));
   char *stdout_path = NULL;
-  bool append_out = false;
   char *stderr_path = NULL;
+
+  bool append_out = false;
+  bool append_err = false;
 
   for (int i = 0; i < argc; i++)
   {
@@ -189,7 +192,7 @@ void execute_command(const char *user_input)
       stdout_path = argv[i + 1];
       i++;
     }
-    else if (strcmp(argv[i], REDIR_ERR) == 0)
+    else if ((strcmp(argv[i], REDIR_ERR) == 0) || (strcmp(argv[i], APPEND_ERR) == 0))
     {
       if (i + 1 >= argc)
       {
@@ -198,6 +201,10 @@ void execute_command(const char *user_input)
         free(argv_cpy);
         free(input_cpy);
         return;
+      }
+      if (strcmp(argv[i], APPEND_ERR) == 0)
+      {
+        append_err = true;
       }
       stderr_path = argv[i + 1];
       i++;
@@ -240,7 +247,7 @@ void execute_command(const char *user_input)
     getcwd(cwd, PATH_MAX);
     create_fullpath(target_dir, cwd, stderr_path);
 
-    stderr_stream = fopen(stderr_path, "w");
+    stderr_stream = fopen(stderr_path, append_err ? "a" : "w");
     if (stderr_stream == NULL)
     {
       printf("Failed to write stderr to: %s\n%s\n", stderr_path, strerror(errno));
