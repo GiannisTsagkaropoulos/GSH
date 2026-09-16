@@ -10,7 +10,7 @@
 
 const char *VALID_COMMANDS[4] = {"exit", "echo", "type", "cd"};
 
-void builtin_type(int argc, char **argv, FILE *stdout_stream)
+void builtin_type(int argc, char **argv, FILE *stdout_stream, FILE *stderr_stream)
 {
   if (argc < 2)
     return;
@@ -41,15 +41,15 @@ void builtin_type(int argc, char **argv, FILE *stdout_stream)
       return;
     }
   }
-  printf("%s: not found\n", cmd);
+  fprintf(stderr_stream, "%s not found\n", cmd);
   free(PATH);
 }
 
-void builtin_pwd(int argc, FILE *stdout_stream)
+void builtin_pwd(int argc, FILE *stdout_stream, FILE *stderr_stream)
 {
   if (argc > 1)
   {
-    printf("pwd: too many arguments\n");
+    fprintf(stderr_stream, "pwd: too many arguments\n");
     return;
   }
 
@@ -60,11 +60,11 @@ void builtin_pwd(int argc, FILE *stdout_stream)
   }
 }
 
-void builtin_cd(int argc, char **argv, FILE *stdout_stream)
+void builtin_cd(int argc, char **argv, FILE *stdout_stream, FILE *stderr_stream)
 {
   if (argc > 2)
   {
-    fprintf(stderr, "cd: too many arguments\n");
+    fprintf(stderr_stream, "cd: too many arguments\n");
     return;
   }
 
@@ -78,20 +78,20 @@ void builtin_cd(int argc, char **argv, FILE *stdout_stream)
 
   if (!dir_exists(target_dir))
   {
-    printf("cd: %s : No such file or directory\n", target_dir);
+    fprintf(stderr_stream, "cd: %s : No such file or directory\n", target_dir);
     return;
   }
 
   int res = chdir(target_dir);
   if (res == -1)
   {
-    printf("cd failed: %s\n", strerror(errno));
+    fprintf(stderr_stream, "cd failed: %s\n", strerror(errno));
     return;
   }
   fprintf(stdout_stream, "%s", target_dir);
 }
 
-void builtin_exec(char *fullpath, char **argv, FILE *stdout_stream)
+void builtin_exec(char *fullpath, char **argv, FILE *stdout_stream, FILE *stderr_stream)
 {
   pid_t pid = fork();
   if (pid == 0)
@@ -101,13 +101,24 @@ void builtin_exec(char *fullpath, char **argv, FILE *stdout_stream)
     {
       if (dup2(target_out_fd, STDOUT_FILENO) == -1)
       {
-        perror("dup2 failed");
+        fprintf(stderr_stream, "dup2 failed");
         exit(1);
       }
     }
+
+    int target_err_fd = fileno(stderr_stream);
+    if (target_err_fd != STDERR_FILENO)
+    {
+      if (dup2(target_err_fd, STDERR_FILENO) == -1)
+      {
+        fprintf(stderr_stream, "dup2 failed");
+        exit(1);
+      }
+    }
+
     if (execv(fullpath, argv) == -1)
     {
-      perror("execv failed");
+      fprintf(stderr_stream, "execv failed");
       exit(1);
     }
   }
@@ -118,7 +129,7 @@ void builtin_exec(char *fullpath, char **argv, FILE *stdout_stream)
   }
   else
   {
-    perror("fork failed");
+    fprintf(stderr_stream, "fork failed");
   }
 }
 

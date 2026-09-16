@@ -10,8 +10,9 @@
 #include "builtins.h"
 
 #define ARG_SEP " \t\r"
-#define REDIR_ERR_1 ">"
-#define REDIR_ERR_2 "1>"
+#define REDIR_OUT_1 ">"
+#define REDIR_OUT_2 "1>"
+#define REDIR_ERR "2>"
 #define FIRST_PATH_SEP
 #define PROMPT "GSH"
 #define SINGLE_QUOTE '\''
@@ -164,12 +165,12 @@ void execute_command(const char *user_input)
   int argc_cpy = 0;
   char **argv_cpy = malloc((argc + 1) * sizeof(char *));
   char *stdout_path = NULL;
+  char *stderr_path = NULL;
 
   for (int i = 0; i < argc; i++)
   {
-    if (strcmp(argv[i], REDIR_ERR_1) == 0 || strcmp(argv[i], REDIR_ERR_2) == 0)
+    if (strcmp(argv[i], REDIR_OUT_1) == 0 || strcmp(argv[i], REDIR_OUT_2) == 0)
     {
-      argv_cpy[i] = NULL;
       if (i + 1 >= argc)
       {
         printf("parse error near `\\n'\n");
@@ -179,10 +180,26 @@ void execute_command(const char *user_input)
         return;
       }
       stdout_path = argv[i + 1];
-      break;
+      i++;
     }
-    argv_cpy[i] = argv[i];
-    argc_cpy++;
+    else if (strcmp(argv[i], REDIR_ERR) == 0)
+    {
+      if (i + 1 >= argc)
+      {
+        printf("parse error near `\\n'\n");
+        free(argv);
+        free(argv_cpy);
+        free(input_cpy);
+        return;
+      }
+      stderr_path = argv[i + 1];
+      i++;
+    }
+    else
+    {
+      argv_cpy[i] = argv[i];
+      argc_cpy++;
+    }
   }
   argv_cpy[argc_cpy] = NULL;
 
@@ -206,7 +223,30 @@ void execute_command(const char *user_input)
       return;
     }
   }
+
+  FILE *stderr_stream = stderr;
+  if (stderr_path != NULL)
+  {
+    char cwd[PATH_MAX];
+    char target_dir[PATH_MAX] = {0};
+
+    getcwd(cwd, PATH_MAX);
+    create_fullpath(target_dir, cwd, stderr_path);
+
+    stderr_stream = fopen(stderr_path, "w");
+    if (stderr_stream == NULL)
+    {
+      printf("Failed to write stderr to: %s\n%s\n", stderr_path, strerror(errno));
+
+      free(argv);
+      free(argv_cpy);
+      free(input_cpy);
+      return;
+    }
+  }
+
   int target_out = fileno(stdout_stream);
+  int target_err = fileno(stderr_stream);
 
   char *cmd = argv[0];
   char fullpath[PATH_MAX];
@@ -215,16 +255,16 @@ void execute_command(const char *user_input)
     builtin_echo(argc_cpy, argv_cpy, stdout_stream);
 
   else if (strcmp(cmd, "type") == 0)
-    builtin_type(argc_cpy, argv_cpy, stdout_stream);
+    builtin_type(argc_cpy, argv_cpy, stdout_stream, stderr_stream);
 
   else if (strcmp(cmd, "pwd") == 0)
-    builtin_pwd(argc_cpy, stdout_stream);
+    builtin_pwd(argc_cpy, stdout_stream, stderr_stream);
 
   else if (strcmp(cmd, "cd") == 0)
-    builtin_cd(argc_cpy, argv_cpy, stdout_stream);
+    builtin_cd(argc_cpy, argv_cpy, stdout_stream, stderr_stream);
 
   else if (is_exec(fullpath, cmd))
-    builtin_exec(fullpath, argv_cpy, stdout_stream);
+    builtin_exec(fullpath, argv_cpy, stdout_stream, stderr_stream);
   else
     printf("%s: command not found\n", cmd);
 
@@ -232,6 +272,12 @@ void execute_command(const char *user_input)
   {
     fclose(stdout_stream);
   }
+
+  if (target_err != STDERR_FILENO)
+  {
+    fclose(stderr_stream);
+  }
+
   free(argv);
   free(argv_cpy);
   free(input_cpy);
