@@ -12,6 +12,8 @@
 #define ARG_SEP " \t\r"
 #define REDIR_OUT_1 ">"
 #define REDIR_OUT_2 "1>"
+#define APPEND_OUT_1 ">>"
+#define APPEND_OUT_2 "1>>"
 #define REDIR_ERR "2>"
 #define FIRST_PATH_SEP
 #define PROMPT "GSH"
@@ -165,11 +167,12 @@ void execute_command(const char *user_input)
   int argc_cpy = 0;
   char **argv_cpy = malloc((argc + 1) * sizeof(char *));
   char *stdout_path = NULL;
+  bool append_out = false;
   char *stderr_path = NULL;
 
   for (int i = 0; i < argc; i++)
   {
-    if (strcmp(argv[i], REDIR_OUT_1) == 0 || strcmp(argv[i], REDIR_OUT_2) == 0)
+    if (strcmp(argv[i], REDIR_OUT_1) == 0 || strcmp(argv[i], REDIR_OUT_2) == 0 || strcmp(argv[i], APPEND_OUT_1) == 0 || strcmp(argv[i], APPEND_OUT_2) == 0)
     {
       if (i + 1 >= argc)
       {
@@ -178,6 +181,10 @@ void execute_command(const char *user_input)
         free(argv_cpy);
         free(input_cpy);
         return;
+      }
+      if (strcmp(argv[i], APPEND_OUT_1) == 0 || strcmp(argv[i], APPEND_OUT_2) == 0)
+      {
+        append_out = true;
       }
       stdout_path = argv[i + 1];
       i++;
@@ -212,7 +219,7 @@ void execute_command(const char *user_input)
     getcwd(cwd, PATH_MAX);
     create_fullpath(target_dir, cwd, stdout_path);
 
-    stdout_stream = fopen(stdout_path, "w");
+    stdout_stream = fopen(stdout_path, append_out ? "a" : "w");
     if (stdout_stream == NULL)
     {
       printf("Failed to write stdout to: %s\n%s\n", stdout_path, strerror(errno));
