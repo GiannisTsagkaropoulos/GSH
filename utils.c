@@ -12,9 +12,8 @@ int dir_exists(const char *path)
 {
   struct stat status;
 
-  stat(path, &status);
   // remove bit mask for file type.  https://manpages.debian.org/testing/manpages/S_ISDIR.3.en.html
-  if ((status.st_mode & S_IFMT) == S_IFDIR)
+  if (stat(path, &status) == 0 && (status.st_mode & S_IFMT) == S_IFDIR)
   {
     return 1;
   }
@@ -141,7 +140,7 @@ void create_fullpath(char *target_dir, char *cwd, char *cd_arg)
   return;
 }
 
-int handle_home_dir(char *target_dir, char *cd_arg)
+int handle_home_dir(char *target_dir, const char *cd_arg)
 {
   // Handle "~" or "~/"
   if (cd_arg[1] == '\0' || cd_arg[1] == '/')
@@ -152,7 +151,7 @@ int handle_home_dir(char *target_dir, char *cd_arg)
       fprintf(stderr, "cd: HOME not set\n");
       return 1;
     }
-    sprintf(target_dir, "%s%s", home, cd_arg + 1);
+    sprintf(target_dir, "%s", home);
     return 0;
   }
   // Handle "~username"
