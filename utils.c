@@ -12,9 +12,8 @@ int dir_exists(const char *path)
 {
   struct stat status;
 
-  stat(path, &status);
   // remove bit mask for file type.  https://manpages.debian.org/testing/manpages/S_ISDIR.3.en.html
-  if ((status.st_mode & S_IFMT) == S_IFDIR)
+  if (stat(path, &status) == 0 && (status.st_mode & S_IFMT) == S_IFDIR)
   {
     return 1;
   }
@@ -48,100 +47,85 @@ int is_exec(char *fullpath, char *program)
   return found;
 }
 
-void create_fullpath(char *target_dir, char *cwd, char *cd_arg)
+void create_fullpath(char *target_dir, const char *cwd, const char *cd_arg)
 {
   if (cd_arg[0] == '~')
   {
-    int res = handle_home_dir(target_dir, cd_arg);
-    if (res != 0)
-      return;
+    handle_home_dir(target_dir, cd_arg);
+    return;
   }
-
-  // Absolute path
-  if (strncmp(cd_arg, "/", 1) == 0)
+  else if (cd_arg[0] == '/')
   {
-    strncpy(target_dir, cd_arg, PATH_MAX);
+    snprintf(target_dir, PATH_MAX, "%s", cd_arg);
     return;
   }
 
-  // Relative path
-  char relative_path[PATH_MAX];
+  char *path_stack[PATH_MAX / 2];
+  int sp = 0;
 
-  if (strncmp(cd_arg, "./", 2) == 0)
+  char *cwd_cpy = strdup(cwd);
+  if (!cwd_cpy)
+    return;
+
+  char *token = strtok(cwd_cpy, "/");
+  while (token != NULL)
   {
-    strcpy(relative_path, cd_arg + 1);
-  }
-  else if (isalnum(cd_arg[0]) || (!strncmp(cd_arg, ".", 1) && (strlen(cd_arg) > 1) && isalnum(cd_arg[2])))
-  { // handle relative path which starts with hidden directory
-    relative_path[0] = '/';
-    strcpy(relative_path + 1, cd_arg);
+    if (strcmp(token, "..") == 0)
+    {
+      sp = sp > 0 ? sp - 1 : 0;
+    }
+    else if (strcmp(token, ".") != 0)
+    {
+      path_stack[sp++] = token;
+    }
+    token = strtok(NULL, "/");
   }
 
-  if (!strncmp(relative_path, "/", 1))
+  char *cd_arg_cpy = strdup(cd_arg);
+  if (!cd_arg_cpy)
   {
-    snprintf(target_dir, PATH_MAX, "%s/%s", cwd, relative_path + 1);
+    free(cwd_cpy);
     return;
   }
 
-  // "starts with .."
-  char *arg_token = strdup(cd_arg);
-  arg_token = strtok(arg_token, "/ \t\r\n");
-  int steps_back = 0;
-  while (arg_token && !strcmp(arg_token, ".."))
+  token = strtok(cd_arg_cpy, "/");
+  while (token != NULL)
   {
-    if (strcmp(arg_token, "..") == 0)
+    if (strcmp(token, "..") == 0)
     {
-      steps_back++;
+      sp = sp > 0 ? sp - 1 : 0;
     }
-    arg_token = strtok(NULL, "/");
-  }
-
-  char **path_arr = NULL;
-  char *cwd_token = strtok(cwd, "/");
-  int dir_num = 1;
-  while (cwd_token != NULL)
-  {
-    path_arr = realloc(path_arr, sizeof(char *) * dir_num);
-    path_arr[dir_num - 1] = cwd_token;
-    cwd_token = strtok(NULL, "/");
-    dir_num++;
-  }
-  dir_num -= 1;
-  int max_path = dir_num;
-
-  int diff = dir_num - steps_back;
-  int idx = diff < 0 ? 0 : diff;
-  while (arg_token != NULL)
-  {
-    if (idx > max_path)
+    else if (strcmp(token, ".") != 0)
     {
-      path_arr = realloc(path_arr, sizeof(char *) * idx);
+      path_stack[sp++] = token;
     }
-    path_arr[idx] = arg_token;
-    arg_token = strtok(NULL, "/");
-    idx++;
+    token = strtok(NULL, "/");
   }
 
-  size_t size = 0;
-  char temp_dir[PATH_MAX] = "";
-
-  for (int i = 0; i < idx; i++)
+  //
+  char raw_path[PATH_MAX] = "";
+  if (sp == 0)
   {
-    char next_dir[PATH_MAX];
-    char *dir = path_arr[i];
-
-    size_t dir_size = strlen(dir);
-    size = size == 0 ? 2 + dir_size : size + 1 + dir_size;
-
-    snprintf(next_dir, PATH_MAX, "%s/%s", temp_dir, path_arr[i]);
-    strncpy(temp_dir, next_dir, PATH_MAX);
+    strncpy(target_dir, "/", PATH_MAX);
   }
-  strncpy(target_dir, temp_dir, size);
-  free(arg_token);
-  return;
+  else
+  {
+    size_t cur_len = 0;
+    for (int i = 0; i < sp; i++)
+    {
+      // Write directly to the remaining buffer space
+      char *to_add = path_stack[i];
+      snprintf(raw_path + cur_len, PATH_MAX - cur_len, "/%s", to_add);
+      cur_len += 1 + strlen(to_add);
+    }
+    strncpy(target_dir, raw_path, PATH_MAX);
+  }
+
+  free(cwd_cpy);
+  free(cd_arg_cpy);
 }
 
-int handle_home_dir(char *target_dir, char *cd_arg)
+int handle_home_dir(char *target_dir, const char *cd_arg)
 {
   // Handle "~" or "~/"
   if (cd_arg[1] == '\0' || cd_arg[1] == '/')
@@ -152,7 +136,7 @@ int handle_home_dir(char *target_dir, char *cd_arg)
       fprintf(stderr, "cd: HOME not set\n");
       return 1;
     }
-    sprintf(target_dir, "%s%s", home, cd_arg + 1);
+    sprintf(target_dir, "%s", home);
     return 0;
   }
   // Handle "~username"
